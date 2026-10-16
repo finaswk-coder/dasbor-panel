@@ -1,0 +1,92 @@
+﻿<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Anime Dasbor</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <!-- Background gambar: taruh assets/bg.jpg -->
+  <div class="bgImg"></div>
+  <div class="bgGlow"></div>
+  <div class="noise"></div>
+
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">🌀</div>
+      <div>
+        <div class="brandName">ANIME DASH</div>
+        <div class="brandSub">panel shortcut kamu</div>
+      </div>
+    </div>
+
+    <div class="clockCard">
+      <div id="clock" class="clock">00:00:00</div>
+      <div id="date" class="date">—</div>
+    </div>
+
+    <div class="sideBox">
+      <div class="sideTitle">Quick</div>
+      <div class="quickBtns">
+        <button id="openFav" class="btn primary">⭐ Open Favorit</button>
+        <button id="shuffle" class="btn ghost">🔀 Acak</button>
+        <button id="reset" class="btn ghost">↩ Reset</button>
+      </div>
+    </div>
+
+    <div class="sideBox">
+      <div class="sideTitle">Catatan</div>
+      <div class="note">
+        • Background pakai <code>assets/bg.jpg</code><br/>
+        • Tambah app/edit icon di <code>app.js</code>
+      </div>
+    </div>
+
+    <div class="sideFoot">Made with ⚡</div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div>
+        <h1>Dasbor Kamu</h1>
+        <p class="sub">YouTube • TikTok • Discord • IG • dll (pake icon + neon)</p>
+      </div>
+
+      <div class="topRight">
+        <input id="q" class="search" placeholder="Cari app... (youtube/discord/ig)" autocomplete="off"/>
+        <div class="pills">
+          <span class="pill">Apps: <b id="countApps">0</b></span>
+          <span class="pill">Kategori: <b id="countCats">0</b></span>
+          <button id="theme" class="pillBtn" title="Toggle tema">🌙</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="chips" id="chips"></section>
+
+    <section class="stats">
+      <div class="stat">
+        <div class="k">Status</div>
+        <div class="v" id="status">Ready</div>
+      </div>
+      <div class="stat">
+        <div class="k">Kategori aktif</div>
+        <div class="v" id="activeCat">Semua</div>
+      </div>
+      <div class="stat">
+        <div class="k">Tips</div>
+        <div class="v">Klik kartu untuk buka tab</div>
+      </div>
+    </section>
+
+    <section class="grid" id="grid"></section>
+
+    <footer class="foot">
+      Kalau background belum muncul: pastiin file ada di <code>assets/bg.jpg</code>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

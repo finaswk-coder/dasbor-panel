@@ -1,0 +1,41 @@
+Arsip musik yang dihapus dari game "kit nx baruu" (semua tidak punya izin akses / bukan milik sendiri).
+Format: lokasi | nama | SoundId
+
+GVID.Audio.Music | Dear God | rbxassetid://86477696090816
+GVID.Audio.Music | (A7X)So far away | rbxassetid://128361636451962
+GVID.Audio.Music | A little piece of heaven(A7X) | rbxassetid://113679114650311
+GVID.Audio.Music | Seize The day | rbxassetid://130582108006822
+GVID.Audio.Music | ATSL (ST12) | rbxassetid://128892054011743
+GVID.Audio.Music | (A7X)4_00AM | rbxassetid://126344147137205
+GVID.Audio.Music | (A7X)afterlife | rbxassetid://93413365026193
+GVID.Audio.Music | (A7X)Lost | rbxassetid://118035350484292
+GVID.Audio.Music | (A7X)Nightmare | rbxassetid://108009208957607
+GVID.Audio.Music | (A7X)Demons | rbxassetid://99081058405266
+GVID.Audio.Music | (A7X)Gunslinger | rbxassetid://108916126262126
+GVID.Audio.Music | HAIL to the king(A7X) | rbxassetid://87869745967361
+GVID.Audio.Music | Black Veil Brides | rbxassetid://92992584244135
+GVID.Audio.Music | (A7X)Brompton cocktail | rbxassetid://109835988114320
+GVID.Audio.Music | Crimson Vale | rbxassetid://93548558114499
+GVID.Audio.Music | (A7X)Critical Acclaim | rbxassetid://134264690717637
+GVID.Audio.Music | Good charlotte | rbxassetid://86032300249847
+GVID.Audio.Music | Di Matamu(cover Zinu) | rbxassetid://94031632538417
+GVID.Audio.Music | Kotak-sendiri | rbxassetid://91815207355017
+GVID.Audio.Music | MOUNT DEATHBAT | rbxassetid://124651814274901
+GVID.Audio.Music | Muse-hysteria | rbxassetid://125004614543834
+GVID.Audio.Music | My Chemical Romance | rbxassetid://130060824909293
+GVID.Audio.Music | One Last Breath | rbxassetid://99679083925536
+GVID.Audio.Music | QUEEN OF THE AFTERLIGHT | rbxassetid://82241377888763
+GVID.Audio.Music | The reason-hoobastank | rbxassetid://132149542161949
+GVID.Audio.Music | Tia | rbxassetid://101138492686227
+GVID.Audio.Music | TUHAN TOLONG | rbxassetid://96518150247350
+GVID.Audio.Music | Viral Tiktok-sama sama suka | rbxassetid://86404551646349
+GVID.Audio.Music | When You're gone-avril | rbxassetid://127974489526826
+GVID.Audio.Music | (A7X)almost easy | rbxassetid://82333983150896
+GVID.Audio.Music | You & I - Midnight Blu, Ashia Rei, Dan Rafaae | rbxassetid://88792721090048
+GVID.Audio.Music | (A7X)bat country | rbxassetid://78908528347752
+GVID.Audio.Music | (A7X)and all things will end | rbxassetid://95927348925272
+GVID.Audio.Music | From Ashes to new | rbxassetid://138894723887125
+GVID.Audio.Music | my-darkest | rbxassetid://103174087713757
+GVID.GVID.Audio.Music | starboy | rbxassetid://115601243593138
+GVID.GVID.Audio.Music | Sound | rbxassetid://87375725602226
+SoundService | MusicPlayerSound | rbxassetid://87869745967361

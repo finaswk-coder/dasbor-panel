@@ -1,0 +1,17 @@
+Animasi dance/emote yang dihapus dari place "Kit Velora" (placeId 85089418717718)
+karena aset animasinya milik pihak lain dan tidak bisa dimuat di experience ini
+("Pengalaman virtual tidak memiliki izin akses..."). Ganti dengan animasi milikmu sendiri:
+upload animasi di Roblox Studio (Animation Editor) lalu buat objek Animation baru
+di ReplicatedStorage.AnimLibrary.Dance (atau .Emote) dengan Name = judul dan AnimationId = rbxassetid://IDMU
+
+Dance (21):
+  Billy (114870574666367), Showstopper (107480116315394), Living Large (76721110476139),
+  Phone It In (122877968981246), Crusin (107741984426363), Take The Elf (102907626854398),
+  Finesse (129971206883606), Jetstream Taunt (129934487803781), Sprinkler (72638310458871),
+  HeadBanger (93602212867016), Brodyquest (111264325432501), Heel Toe Hop (134872274414252),
+  Heel Toe Hop (125818301569637), Pon Pon (116679658719508), Prancer (115734533270555),
+  Crackdown (112003727771984), Macarena (84855227495476), Billy (129690421479312),
+  Falcon (122615649751845), Worm (123575073843039), Take The L (92884379977143)
+
+Emote (4):
+  Sigma (91232021179780), Head (130292663135773), Sleep (84312069900590), Sit (115335104972266)
