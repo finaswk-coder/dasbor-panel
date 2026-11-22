@@ -1,5 +1,6 @@
 // Semua urusan ke API Roblox: download asset, deteksi tipe, upload, polling operation.
 import { gunzipSync } from 'node:zlib';
+import { spawn } from 'node:child_process';
 
 const DELIVERY_URL = (id) => `https://apis.roblox.com/asset-delivery-api/v1/assetId/${id}`;
 // Asset Delivery lama, tanpa API key: cuma bisa asset publik, tapi cukup buat cadangan.
@@ -67,6 +68,31 @@ export function detectKind(buf) {
   if (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WAVE') return { kind: 'audio', ext: 'wav', mime: 'audio/wav' };
   if (ascii.startsWith('fLaC')) return { kind: 'audio', ext: 'flac', mime: 'audio/flac' };
   return { kind: 'unknown', ext: 'bin', mime: 'application/octet-stream' };
+}
+
+// ---------------------------------------------------------------- konversi audio
+
+/** Convert audio (ogg/wav/flac/...) jadi MP3 pakai ffmpeg (harus terpasang di server). */
+export function toMp3(buf, { bitrate = '128k', timeoutMs = 90_000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-i', 'pipe:0',
+      '-vn', '-map_metadata', '-1', '-codec:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3', 'pipe:1',
+    ]);
+    const out = [];
+    let err = '';
+    const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('ffmpeg timeout')); }, timeoutMs);
+    ff.stdout.on('data', (d) => out.push(d));
+    ff.stderr.on('data', (d) => { err += d; });
+    ff.on('error', (e) => { clearTimeout(timer); reject(e); });
+    ff.on('close', (code) => {
+      clearTimeout(timer);
+      if (code === 0 && out.length) resolve(Buffer.concat(out));
+      else reject(new Error(`ffmpeg gagal (kode ${code}): ${err.slice(0, 200)}`));
+    });
+    ff.stdin.on('error', () => {}); // EPIPE kalau ffmpeg berhenti duluan
+    ff.stdin.end(buf);
+  });
 }
 
 // ---------------------------------------------------------------- cek API key

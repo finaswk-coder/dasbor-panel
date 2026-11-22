@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Partials, AttachmentBuilder, ChannelType } from 'discord.js';
 import {
-  detectKind, downloadWithFallback, uploadAsset, getAssetName, introspectApiKey, keyOwnerFromJwt,
+  detectKind, downloadWithFallback, uploadAsset, getAssetName, introspectApiKey, keyOwnerFromJwt, toMp3,
 } from './roblox.js';
 import { setUserKey, getUserKey, deleteUserKey } from './store.js';
 
@@ -9,6 +9,8 @@ const PREFIX = process.env.PREFIX || '.';
 const MAX_IDS = Number(process.env.MAX_IDS_PER_COMMAND) || 25;
 const BOT_KEY = process.env.BOT_ROBLOX_API_KEY || '';
 const MAX_FILE_MB = 20;
+// Batas lampiran Discord untuk bot (server tanpa boost = 10 MB)
+const MAX_UPLOAD = (Number(process.env.DISCORD_MAX_MB) || 10) * 1024 * 1024;
 // Kosong = semua channel. Isi ID channel (pisah koma) supaya bot cuma jawab di situ (+ DM).
 const ALLOWED_CHANNELS = (process.env.ALLOWED_CHANNEL_IDS || '').split(/[\s,]+/).filter(Boolean);
 // Urutan download tanpa key user: key bot (kalau diisi) → publik tanpa key
@@ -101,7 +103,8 @@ const HELP = [
   '',
   `\`${PREFIX}spoff <id id id...> [anim|audio]\` — spoof animasi/lagu dari ID → upload ulang ke akun/grup kamu. **Wajib API key kamu.**`,
   `\`${PREFIX}spoff\` + lampirkan file \`.rbxm/.rbxmx/.ogg/.mp3\` — upload file langsung ke akun kamu.`,
-  `\`${PREFIX}rbxm <id id id...>\` — download jadi file \`.rbxm\` (animasi) / \`.ogg/.mp3\` (lagu). **Tanpa API key.**`,
+  `\`${PREFIX}rbxm <id id id...>\` — **tanpa API key**: ID animasi jadi \`.rbxm\`, ID lagu jadi \`.mp3\` → upload manual. (alias: \`${PREFIX}mp3\`, \`${PREFIX}dl\`)`,
+  '   ⚠️ Cuma asset **publik** (Creator Store/Toolbox/punya sendiri). Asset privat milik orang lain ditolak Roblox.',
   `\`${PREFIX}setkey <apikey>\` — simpan API key (**kirim lewat DM ke bot**). ID Roblox dibaca otomatis dari key. Bisa juga cukup *paste key-nya aja* di DM.`,
   `\`${PREFIX}setkey <apikey> group <groupId>\` — kalau hasil upload mau masuk ke grup.`,
   `\`${PREFIX}delkey\` — hapus API key kamu.`,
@@ -177,28 +180,69 @@ async function cmdDelKey(msg) {
 
 async function cmdRbxm(msg, args) {
   const ids = parseIds(args.join(' ')).slice(0, MAX_IDS);
-  if (!ids.length) return msg.reply(`Format: \`${PREFIX}rbxm <id id id...>\``);
+  if (!ids.length) {
+    return msg.reply(`Format: \`${PREFIX}rbxm <id id id...>\` — ID animasi jadi \`.rbxm\`, ID lagu jadi \`.mp3\`. Tanpa API key.`);
+  }
 
   const status = await msg.reply(`⏳ Download ${ids.length} asset...`);
   const results = await pool(ids, 3, async (id) => {
     try {
-      const { buf } = await downloadWithFallback(id, BOT_DOWNLOAD_KEYS);
+      let { buf } = await downloadWithFallback(id, BOT_DOWNLOAD_KEYS);
       const k = detectKind(buf);
-      const name = (await getAssetName(id)) || id;
-      const safe = name.replace(/[^\w\- ]/g, '').trim().replace(/\s+/g, '_').slice(0, 40) || id;
-      return { id, ok: true, kind: k.kind, file: new AttachmentBuilder(buf, { name: `${safe}_${id}.${k.ext}` }), size: buf.length };
+      let ext = k.ext;
+      let note = '';
+      if (k.kind === 'audio' && ext !== 'mp3') {
+        try {
+          buf = await toMp3(buf);
+          ext = 'mp3';
+        } catch (e) {
+          console.error('[mp3]', id, e.message);
+          note = ` (gagal convert ke mp3, dikirim .${ext})`;
+        }
+      }
+      const name = (await getAssetName(id)) || '';
+      const safe = (name || id).replace(/[^\w\- ]/g, '').trim().replace(/\s+/g, '_').slice(0, 40) || id;
+      return { id, ok: true, kind: k.kind, ext, note, name, size: buf.length,
+        file: new AttachmentBuilder(buf, { name: `${safe}_${id}.${ext}` }) };
     } catch (e) {
       return { id, ok: false, err: e.message };
     }
   });
+  console.log(`[rbxm] ${msg.author.tag}: ${results.map((r) => `${r.id}=${r.ok ? r.ext : 'gagal'}`).join(' ')}`);
 
-  const files = results.filter((r) => r.ok && r.size <= 25 * 1024 * 1024).map((r) => r.file);
-  const lines = results.map((r) =>
-    r.ok ? `✅ \`${r.id}\` → ${r.kind === 'animation' ? 'animasi (.rbxm)' : r.kind}` : `❌ \`${r.id}\` — ${r.err.slice(0, 150)}`);
+  const kebesaran = (r) => r.size > MAX_UPLOAD;
+  const files = results.filter((r) => r.ok && !kebesaran(r)).map((r) => r.file);
+  const lines = results.map((r) => {
+    if (!r.ok) return `❌ \`${r.id}\` — ${jelaskanError(r.err)}`;
+    const jenis = r.kind === 'animation' ? `🎬 animasi .${r.ext}` : r.kind === 'audio' ? `🎵 lagu .${r.ext}` : `file .${r.ext}`;
+    if (kebesaran(r)) return `⚠️ \`${r.id}\` — ${jenis} kebesaran (${(r.size / 1048576).toFixed(1)} MB, batas Discord ${MAX_UPLOAD / 1048576} MB)`;
+    return `✅ \`${r.id}\` → ${jenis}${r.name ? ` • ${r.name}` : ''}${r.note}`;
+  });
+
+  const tips = [];
+  if (results.some((r) => r.ok && r.kind === 'animation')) {
+    tips.push('🎬 **.rbxm** → Studio: klik kanan Workspace → *Insert from File* → klik kanan KeyframeSequence → *Save to Roblox*.');
+  }
+  if (results.some((r) => r.ok && r.kind === 'audio')) {
+    tips.push('🎵 **.mp3** → create.roblox.com → Creations → Audio → *Upload Asset* (atau Studio → Asset Manager → Bulk Import).');
+  }
+  if (results.some((r) => !r.ok && /not authorized/i.test(r.err))) {
+    tips.push('🔒 Asset privat cuma bisa didownload pemiliknya. Cari versi publiknya di Creator Store / Toolbox.');
+  }
 
   // Discord maks 10 file per pesan
-  await status.edit({ content: lines.join('\n').slice(0, 1900) + '\n\n📥 Import `.rbxm` di Studio: klik kanan Workspace → *Insert from File*.', files: files.slice(0, 10) });
+  const content = `${lines.join('\n').slice(0, 1400)}\n\n${tips.join('\n')}`.slice(0, 1990);
+  await status.edit({ content, files: files.slice(0, 10) });
   for (let i = 10; i < files.length; i += 10) await msg.channel.send({ files: files.slice(i, i + 10) });
+}
+
+/** Ubah pesan error Roblox jadi penjelasan singkat. */
+function jelaskanError(err) {
+  const m = String(err);
+  if (/not authorized/i.test(m)) return '🔒 privat (milik orang lain) — Roblox tidak izinkan download';
+  if (/not found|404|does not exist|invalid asset/i.test(m)) return 'ID tidak ditemukan / bukan asset';
+  if (/moderat|not approved|pending review/i.test(m)) return 'asset kena moderasi / belum disetujui';
+  return m.replace(/^\[[^\]]+\]\s*/, '').slice(0, 150);
 }
 
 // ---------------------------------------------------------------- command: spoff (pakai API key user)
@@ -315,6 +359,10 @@ client.on('messageCreate', async (msg) => {
       case 'spoof':
         return await cmdSpoff(msg, args);
       case 'rbxm':
+      case 'mp3':
+      case 'dl':
+      case 'download':
+      case 'ambil':
         return await cmdRbxm(msg, args);
       case 'setkey':
         return await cmdSetKey(msg, args);
