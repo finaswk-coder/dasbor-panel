@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, Partials, AttachmentBuilder, ChannelType } from 'discord.js';
 import {
-  detectKind, downloadWithFallback, uploadAsset, getAssetName,
+  detectKind, downloadWithFallback, uploadAsset, getAssetName, introspectApiKey, keyOwnerFromJwt,
 } from './roblox.js';
 import { setUserKey, getUserKey, deleteUserKey } from './store.js';
 
@@ -12,6 +12,8 @@ const MAX_FILE_MB = 20;
 // Kosong = semua channel. Isi ID channel (pisah koma) supaya bot cuma jawab di situ (+ DM).
 const ALLOWED_CHANNELS = (process.env.ALLOWED_CHANNEL_IDS || '').split(/[\s,]+/).filter(Boolean);
 // Urutan download tanpa key user: key bot (kalau diisi) → publik tanpa key
+// Bentuk API key Roblox Open Cloud: string base64 panjang (ratusan karakter)
+const API_KEY_RE = /^[A-Za-z0-9+/=_-]{200,}$/;
 const BOT_DOWNLOAD_KEYS = [
   { key: BOT_KEY, label: 'key bot' },
   { public: true, label: 'publik' },
@@ -100,7 +102,8 @@ const HELP = [
   `\`${PREFIX}spoff <id id id...> [anim|audio]\` — spoof animasi/lagu dari ID → upload ulang ke akun/grup kamu. **Wajib API key kamu.**`,
   `\`${PREFIX}spoff\` + lampirkan file \`.rbxm/.rbxmx/.ogg/.mp3\` — upload file langsung ke akun kamu.`,
   `\`${PREFIX}rbxm <id id id...>\` — download jadi file \`.rbxm\` (animasi) / \`.ogg/.mp3\` (lagu). **Tanpa API key.**`,
-  `\`${PREFIX}setkey <apikey> <user|group> <userId/groupId>\` — simpan API key (**kirim lewat DM ke bot**).`,
+  `\`${PREFIX}setkey <apikey>\` — simpan API key (**kirim lewat DM ke bot**). ID Roblox dibaca otomatis dari key. Bisa juga cukup *paste key-nya aja* di DM.`,
+  `\`${PREFIX}setkey <apikey> group <groupId>\` — kalau hasil upload mau masuk ke grup.`,
   `\`${PREFIX}delkey\` — hapus API key kamu.`,
   '',
   '**Permission API key** (create.roblox.com → Open Cloud → API Keys):',
@@ -120,13 +123,49 @@ async function cmdSetKey(msg, args) {
     await msg.delete().catch(() => {});
     return msg.channel.send(`⚠️ ${msg.author}, **jangan kirim API key di server!** Pesan kamu sudah dihapus. Kirim \`${PREFIX}setkey\` lewat **DM** ke bot. Sebaiknya *regenerate* API key itu di Creator Dashboard.`);
   }
-  const [apiKey, typeRaw, creatorId] = args;
-  const creatorType = (typeRaw || '').toLowerCase();
-  if (!apiKey || !['user', 'group'].includes(creatorType) || !/^\d+$/.test(creatorId || '')) {
-    return msg.reply(`Format: \`${PREFIX}setkey <apikey> <user|group> <userId/groupId>\`\nContoh: \`${PREFIX}setkey abc123... user 123456789\``);
+
+  // Urutan bebas: key = argumen panjang, "user"/"group" = tipe, angka = ID
+  const apiKey = args.find((a) => API_KEY_RE.test(a));
+  const typeArg = args.map((a) => a.toLowerCase()).find((a) => a === 'user' || a === 'group');
+  const idArg = args.find((a) => /^\d+$/.test(a));
+  if (!apiKey) {
+    return msg.reply([
+      '🔑 **Cara simpan API key:** paste key-nya aja di sini (DM), atau ketik:',
+      `\`${PREFIX}setkey <apikey>\``,
+      'ID Roblox kamu dibaca otomatis dari key-nya.',
+      `Mau masuk ke grup? \`${PREFIX}setkey <apikey> group <groupId>\``,
+    ].join('\n'));
   }
+
+  const cek = await introspectApiKey(apiKey);
+  if (!cek.ok && cek.status >= 400 && cek.status < 500) {
+    return msg.reply(`❌ API key ditolak Roblox (HTTP ${cek.status}): ${String(cek.message).slice(0, 200)}\nPastikan key-nya ke-copy **utuh** (tidak kepotong) lalu kirim ulang.`);
+  }
+  if (cek.ok && (!cek.enabled || cek.expired)) {
+    return msg.reply('❌ API key ini sudah **nonaktif / kedaluwarsa**. Aktifkan lagi atau buat key baru di Creator Dashboard.');
+  }
+
+  const creatorType = typeArg || 'user';
+  const creatorId = idArg || (creatorType === 'user' ? (cek.userId || keyOwnerFromJwt(apiKey)) : null);
+  if (!creatorId) {
+    return msg.reply(creatorType === 'group'
+      ? `Untuk grup, tulis ID grupnya: \`${PREFIX}setkey <apikey> group <groupId>\``
+      : `Tidak bisa baca ID Roblox dari key ini. Tulis manual: \`${PREFIX}setkey <apikey> user <userId>\``);
+  }
+
   setUserKey(msg.author.id, { apiKey, creatorType, creatorId });
-  return msg.reply(`✅ API key tersimpan (terenkripsi). Asset hasil spoof akan masuk ke **${creatorType} ${creatorId}**.`);
+
+  const lines = [`✅ API key tersimpan (terenkripsi). Asset hasil spoof akan masuk ke **${creatorType} ${creatorId}**.`];
+  if (cek.ok) {
+    const kurang = ['asset:read', 'asset:write', 'legacy-asset:manage'].filter((s) => !cek.scopes.includes(s));
+    lines.push(kurang.length
+      ? `⚠️ Permission kurang: ${kurang.map((s) => `\`${s}\``).join(', ')} — tambahkan di Creator Dashboard biar spoof lancar.`
+      : '🟢 Permission lengkap (Assets read/write + Legacy Assets manage).');
+  } else {
+    lines.push('⚠️ Key belum bisa dicek ke Roblox sekarang (jaringan), tapi sudah disimpan.');
+  }
+  lines.push(`Sekarang coba \`${PREFIX}spoff <id>\` di channel spoofer.`);
+  return msg.reply(lines.join('\n'));
 }
 
 async function cmdDelKey(msg) {
@@ -250,7 +289,19 @@ async function cmdSpoff(msg, args) {
 // ---------------------------------------------------------------- router
 
 client.on('messageCreate', async (msg) => {
-  if (msg.author.bot || !msg.content.startsWith(PREFIX)) return;
+  if (msg.author.bot) return;
+
+  // Di DM: kalau isinya cuma API key (tanpa .setkey), langsung simpan
+  if (!msg.content.startsWith(PREFIX)) {
+    const isi = msg.content.trim();
+    if (msg.channel.type === ChannelType.DM && API_KEY_RE.test(isi.split(/\s+/)[0] || '')) {
+      try { return await cmdSetKey(msg, isi.split(/\s+/)); } catch (e) {
+        console.error('[setkey-auto]', e);
+        return msg.reply(`❌ Error: ${String(e.message).slice(0, 300)}`).catch(() => {});
+      }
+    }
+    return;
+  }
   const [cmdRaw, ...args] = msg.content.slice(PREFIX.length).trim().split(/\s+/);
   const cmd = (cmdRaw || '').toLowerCase();
 

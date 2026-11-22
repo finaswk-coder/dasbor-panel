@@ -69,6 +69,47 @@ export function detectKind(buf) {
   return { kind: 'unknown', ext: 'bin', mime: 'application/octet-stream' };
 }
 
+// ---------------------------------------------------------------- cek API key
+
+const INTROSPECT_URL = 'https://apis.roblox.com/api-keys/v1/introspect';
+
+/** Ambil ownerId dari JWT yang ada di dalam API key (tanpa request ke Roblox). */
+export function keyOwnerFromJwt(apiKey) {
+  try {
+    const raw = Buffer.from(apiKey, 'base64').toString('latin1');
+    const m = raw.match(/eyJ[\w-]+\.(eyJ[\w-]+)\./);
+    if (!m) return null;
+    const p = JSON.parse(Buffer.from(m[1], 'base64url').toString('utf8'));
+    return p.ownerId ? String(p.ownerId) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cek API key ke Roblox: valid atau tidak, pemiliknya siapa, scope apa saja.
+ * Return { ok, status, userId, enabled, expired, scopes:[...], message }.
+ */
+export async function introspectApiKey(apiKey) {
+  try {
+    const res = await fetchRetry(INTROSPECT_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey }),
+    }, { tries: 3, label: 'cek key' });
+    if (!res.ok) return { ok: false, status: res.status, message: await readError(res) };
+    const j = await res.json();
+    const scopes = (j.scopes || []).flatMap((s) => (s.operations || []).map((op) => `${s.name}:${op}`));
+    return {
+      ok: true, status: res.status, name: j.name,
+      userId: j.authorizedUserId ? String(j.authorizedUserId) : null,
+      enabled: j.enabled !== false, expired: j.expired === true, scopes,
+    };
+  } catch (e) {
+    return { ok: false, status: 0, message: e.message };
+  }
+}
+
 // ---------------------------------------------------------------- info asset
 
 /** Nama asli asset (opsional, cuma buat nama upload). Tidak butuh auth; kalau gagal ya pakai fallback. */
